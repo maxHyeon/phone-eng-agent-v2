@@ -1,0 +1,35 @@
+# OS
+.DS_Store
+
+# Logs
+logs/
+
+# PID files
+.backend.pid
+.frontend.pid
+
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+
+# Local data (SQLite, uploads, reports, backups)
+backend/data/*.db
+backend/uploads/
+backend/reports/
+backend/backups/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Environment / Secrets
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# TypeScript build cache
+*.tsbuildinfo
