@@ -38,7 +38,7 @@ export default function App() {
   const [stats, setStats] = useState<ErrorStats | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showVocabModal, setShowVocabModal] = useState(false);
-  const [analyticsSubTab, setAnalyticsSubTab] = useState<"errors" | "vocab" | "diary">("errors");
+  const [analyticsSubTab, setAnalyticsSubTab] = useState<"errors" | "vocab" | "diary" | "profile">("errors");
   const [analyticsErrorTab, setAnalyticsErrorTab] = useState<"sidebar" | "chat">("sidebar");
   const isMobile = useIsMobile();
   const [pendingLesson, setPendingLesson] = useState<Lesson | null>(null);
@@ -278,24 +278,30 @@ export default function App() {
         </div>
         <div className="flex flex-1 flex-col overflow-hidden" style={{ display: mode === "analytics" ? "flex" : "none" }}>
           {/* Analytics sub-tabs */}
-          <div className="shrink-0 flex border-b border-gray-200 bg-white px-4">
+          <div className="shrink-0 flex border-b border-gray-200 bg-white px-4 overflow-x-auto">
             <button
               onClick={() => setAnalyticsSubTab("errors")}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${analyticsSubTab === "errors" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+              className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${analyticsSubTab === "errors" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
             >
               오류분석
             </button>
             <button
               onClick={() => setAnalyticsSubTab("vocab")}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${analyticsSubTab === "vocab" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+              className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${analyticsSubTab === "vocab" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
             >
               표현노트
             </button>
             <button
               onClick={() => setAnalyticsSubTab("diary")}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${analyticsSubTab === "diary" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+              className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${analyticsSubTab === "diary" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
             >
               일기장
+            </button>
+            <button
+              onClick={() => setAnalyticsSubTab("profile")}
+              className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${analyticsSubTab === "profile" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+            >
+              학습자 프로필
             </button>
           </div>
           {/* Error analysis */}
@@ -332,7 +338,6 @@ export default function App() {
                 </div>
                 <div className="flex flex-1 min-h-0 overflow-hidden" style={{ display: analyticsErrorTab === "sidebar" ? "flex" : "none" }}>
                   <div className="flex-1 overflow-y-auto bg-gray-50 p-3 space-y-3">
-                    <LearnerProfileCard />
                     <ErrorTypeChart stats={stats} />
                     <ErrorTrendChart stats={stats} />
                     <LessonHistory currentLessonId={lesson?.id} onSelect={handleLessonSelect} onDeleted={handleLessonDeleted} />
@@ -353,7 +358,6 @@ export default function App() {
               /* ── 데스크톱: 기존 좌우 레이아웃 ── */
               <>
                 <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3 space-y-3 scrollbar-thin">
-                  <LearnerProfileCard />
                   <ErrorTypeChart stats={stats} />
                   <ErrorTrendChart stats={stats} />
                   <LessonHistory currentLessonId={lesson?.id} onSelect={handleLessonSelect} onDeleted={handleLessonDeleted} />
@@ -376,6 +380,12 @@ export default function App() {
           {/* Diary */}
           <div className="flex flex-1 overflow-hidden" style={{ display: analyticsSubTab === "diary" ? "flex" : "none" }}>
             <DiaryTab />
+          </div>
+          {/* Learner Profile */}
+          <div className="flex-1 overflow-y-auto" style={{ display: analyticsSubTab === "profile" ? "block" : "none" }}>
+            <div className="max-w-2xl mx-auto p-4 md:p-6">
+              <LearnerProfileCard />
+            </div>
           </div>
         </div>
       </div>

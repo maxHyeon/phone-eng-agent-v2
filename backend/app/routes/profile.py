@@ -1,6 +1,7 @@
 from fastapi import APIRouter
-from app.services.profile_service import trigger_profile_update, _compute_profile
+from app.services.profile_service import trigger_profile_update
 from app.services.db_service import get_latest_learner_profile
+from app.database import get_db
 import json
 
 router = APIRouter()
@@ -20,7 +21,6 @@ async def get_profile():
     if not profile:
         return {"profile": None}
 
-    # JSON 문자열 필드 파싱
     for field in ("top_errors", "weak_areas", "strong_areas", "recent_topics", "vocab_stats"):
         if profile.get(field) and isinstance(profile[field], str):
             try:
@@ -29,3 +29,13 @@ async def get_profile():
                 pass
 
     return {"profile": profile}
+
+
+@router.get("/profile/context")
+async def get_personal_context():
+    """개인 컨텍스트(직업/가족/관심사 등)를 카테고리별로 반환합니다."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT category, content FROM personal_context ORDER BY updated_at DESC"
+        ).fetchall()
+    return {r["category"]: r["content"] for r in rows}
