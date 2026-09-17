@@ -12,6 +12,7 @@ import ErrorTypeChart from "./components/analytics/ErrorTypeChart";
 import ErrorTrendChart from "./components/analytics/ErrorTrendChart";
 import LessonHistory from "./components/analytics/LessonHistory";
 import ExpressionList from "./components/analytics/ExpressionList";
+import LearnerProfileCard from "./components/analytics/LearnerProfileCard";
 import VocabNoteTab from "./components/vocab/VocabNoteTab";
 import VocabSaveButton from "./components/vocab/VocabSaveButton";
 import VocabSaveModal from "./components/vocab/VocabSaveModal";
@@ -331,6 +332,7 @@ export default function App() {
                 </div>
                 <div className="flex flex-1 min-h-0 overflow-hidden" style={{ display: analyticsErrorTab === "sidebar" ? "flex" : "none" }}>
                   <div className="flex-1 overflow-y-auto bg-gray-50 p-3 space-y-3">
+                    <LearnerProfileCard />
                     <ErrorTypeChart stats={stats} />
                     <ErrorTrendChart stats={stats} />
                     <LessonHistory currentLessonId={lesson?.id} onSelect={handleLessonSelect} onDeleted={handleLessonDeleted} />
@@ -351,6 +353,7 @@ export default function App() {
               /* ── 데스크톱: 기존 좌우 레이아웃 ── */
               <>
                 <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3 space-y-3 scrollbar-thin">
+                  <LearnerProfileCard />
                   <ErrorTypeChart stats={stats} />
                   <ErrorTrendChart stats={stats} />
                   <LessonHistory currentLessonId={lesson?.id} onSelect={handleLessonSelect} onDeleted={handleLessonDeleted} />

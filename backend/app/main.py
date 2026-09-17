@@ -21,6 +21,7 @@ from app.routes import (
     vocab,
     diary,
     backup,
+    profile,
 )
 
 
@@ -56,6 +57,7 @@ app.include_router(report.router, prefix="/api")
 app.include_router(vocab.router, prefix="/api")
 app.include_router(diary.router, prefix="/api")
 app.include_router(backup.router, prefix="/api")
+app.include_router(profile.router, prefix="/api")
 
 
 @app.get("/api/health")

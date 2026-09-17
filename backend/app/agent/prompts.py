@@ -178,6 +178,13 @@ def build_system_prompt(mode: str, lesson_context: dict | None = None) -> str:
 
         prompt = prompt + profile_section
 
+    # 개인 컨텍스트 자동 주입 (일기/일상 이야기에서 추출된 개인 정보)
+    from app.services.context_extractor_service import get_personal_context_for_prompt
+    personal_ctx = get_personal_context_for_prompt()
+    if personal_ctx:
+        prompt += "\n\n## 🧑 학습자 개인 컨텍스트 (스몰톡 소재로 활용)\n"
+        prompt += personal_ctx + "\n"
+
     if lesson_context:
         prompt += "\n\n## 오늘의 수업 정보\n"
         if lesson_context.get("date"):

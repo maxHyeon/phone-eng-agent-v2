@@ -48,6 +48,11 @@ async def create_diary(data: DiaryCreate):
         ai_output=ai_output,
         memo=data.memo,
     )
+
+    # 일기 작성 완료 → 개인 컨텍스트 추출 (백그라운드)
+    from app.services.context_extractor_service import trigger_context_extraction
+    trigger_context_extraction(data.user_input, source="diary")
+
     return entry
 
 
