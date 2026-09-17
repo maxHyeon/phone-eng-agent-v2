@@ -135,6 +135,134 @@ Anthropic API 직접 연결 또는 AWS Bedrock 중 선택 가능. AWS는 IAM Rol
 | 차트 | Recharts |
 | DB | SQLite |
 
+---
+
+## 플랫폼 제약사항
+
+### ⚠️ mlx-whisper — Apple Silicon 전용
+
+음성 전사(녹음 파일 → 텍스트) 기능은 **mlx-whisper**를 사용한다. mlx-whisper는 Apple의 MLX 프레임워크 기반으로, **macOS + Apple Silicon(M1/M2/M3/M4)** 환경에서만 동작한다.
+
+| 환경 | 음성 전사 |
+|------|---------| 
+| macOS + Apple Silicon (M1~M4) | ✅ mlx-whisper 동작 |
+| macOS + Intel | ❌ mlx-whisper 불가 → 대안 1·3 사용 |
+| Windows + Intel / AMD (x86_64) | ❌ mlx-whisper 불가 → 대안 1·2 사용 |
+| Linux (x86_64 / ARM) | ❌ mlx-whisper 불가 → 대안 1 사용 |
+| AWS EC2 / Fargate | ❌ mlx-whisper 불가 → 대안 1·3·4 사용 |
+
+> 음성 전사 외 모든 기능(스몰톡 연습, 기사 분석, 오류 교정, 드릴, 학습 기록 등)은 플랫폼 무관하게 동작한다.
+
+### 다른 환경에서 실행하려면 — 대안
+
+#### 대안 1: faster-whisper (권장 — 모든 로컬 환경)
+
+CTranslate2 기반 구현으로, CPU에서도 빠르고 macOS Intel·Windows·Linux 모두 지원한다. 코드 변경이 가장 적다.
+
+```bash
+# 설치 (공통)
+pip install faster-whisper
+
+# Windows + NVIDIA GPU 가속 시 추가 설치
+pip install faster-whisper torch --index-url https://download.pytorch.org/whl/cu121
+```
+
+```python
+# whisper_service.py 교체 (drop-in 수준)
+from faster_whisper import WhisperModel
+
+# CPU 전용 (Intel/AMD 공통)
+model = WhisperModel("base", device="cpu", compute_type="int8")
+
+# Windows + NVIDIA GPU 가속 시
+# model = WhisperModel("base", device="cuda", compute_type="float16")
+
+def transcribe_file(file_path: str) -> str:
+    segments, _ = model.transcribe(file_path)
+    return "\n".join(
+        f"[{int(s.start//60):02d}:{int(s.start%60):02d}-{int(s.end//60):02d}:{int(s.end%60):02d}] {s.text.strip()}"
+        for s in segments
+    )
+```
+
+| 항목 | 내용 |
+|------|------|
+| 지원 환경 | macOS Intel, Windows (Intel/AMD), Linux, AWS |
+| CPU 속도 | base 모델 기준 실시간 대비 2~4배 (i5급에서 2~3분 파일 → 30~60초) |
+| GPU 가속 | NVIDIA CUDA 지원 — mlx-whisper와 유사한 속도 |
+| AMD GPU | ROCm 지원 (`device="rocm"`) — 일부 카드만 |
+| 모델 크기 | `tiny`(39MB) / `base`(74MB) / `small`(244MB) |
+
+#### 대안 2: whisper.cpp (Windows 로컬 — 설치 최소화)
+
+순수 C++ 구현으로 Python 의존성 없이 실행 가능. Windows에서 별도 런타임 설치 없이 바이너리만으로 동작한다.
+
+```bash
+# Windows에서 설치 (winget 사용)
+winget install Bilal2453.whisper-cpp
+
+# 또는 직접 빌드
+git clone https://github.com/ggerganov/whisper.cpp
+cd whisper.cpp && cmake -B build && cmake --build build --config Release
+
+# 모델 다운로드
+./models/download-ggml-model.sh base
+```
+
+```python
+# whisper_service.py — subprocess로 whisper.cpp 호출
+import subprocess, json
+
+WHISPER_CPP_BIN = "whisper-cpp"   # 또는 절대 경로
+WHISPER_MODEL   = "models/ggml-base.bin"
+
+def transcribe_file(file_path: str) -> str:
+    result = subprocess.run(
+        [WHISPER_CPP_BIN, "-m", WHISPER_MODEL, "-f", file_path, "-oj"],
+        capture_output=True, text=True
+    )
+    data = json.loads(result.stdout)
+    return "\n".join(seg["text"].strip() for seg in data.get("transcription", []))
+```
+
+| 항목 | 내용 |
+|------|------|
+| 지원 환경 | Windows (Intel/AMD), macOS Intel, Linux |
+| 장점 | Python 환경 불필요, 메모리 가벼움 |
+| 단점 | 빌드 또는 바이너리 별도 준비 필요 |
+| GPU 가속 | NVIDIA CUDA / AMD OpenCL / Intel OpenVINO 지원 |
+
+#### 대안 3: OpenAI Whisper API
+
+로컬 설치 없이 API 호출만으로 전사 가능. 인터넷 연결이 필요하지만 플랫폼 무관하게 동작한다.
+
+```bash
+pip install openai
+```
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+def transcribe_file(file_path: str) -> str:
+    with open(file_path, "rb") as f:
+        result = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=f,
+            language="ko",
+        )
+    return result.text
+```
+
+| 항목 | 내용 |
+|------|------|
+| 지원 환경 | 모든 플랫폼 (인터넷 연결 필요) |
+| 비용 | $0.006/분 (월 60분 기준 약 $0.36) |
+| 지연 | 동기 처리, 빠름 |
+| 의존성 | `openai` 패키지만 추가 |
+
+---
 
 ## AI Agent 아키텍처
 
@@ -356,6 +484,73 @@ cd frontend && npm run dev
 ```
 
 </details>
+
+---
+
+## 모바일 접속 (Tailscale)
+
+로컬에서 앱을 실행한 채로, 외부 네트워크의 스마트폰에서도 접속할 수 있습니다. Tailscale을 이용한 개인 VPN 방식이라 별도 서버 비용 없이 안전하게 연결됩니다.
+
+### 구조
+
+```
+스마트폰 (Tailscale VPN)
+    │
+    └─ http://your-magic-dns:5173
+               │
+               맥 미니 (Vite + FastAPI 실행 중)
+```
+
+### 설정 방법
+
+**1. 맥 미니에 Tailscale 설치 및 로그인**
+
+```bash
+brew install tailscale
+# System Settings → Privacy & Security → Tailscale 권한 허용 후
+tailscale up
+```
+
+**2. 스마트폰에 Tailscale 앱 설치**
+
+- iOS: [App Store](https://apps.apple.com/app/tailscale/id1470499037)
+- Android: [Play Store](https://play.google.com/store/apps/details?id=com.tailscale.ipn.android)
+
+맥 미니와 **동일한 계정**으로 로그인합니다.
+
+**3. Tailscale 관리 콘솔에서 MagicDNS 활성화**
+
+[Tailscale Admin Console](https://login.tailscale.com/admin/dns) → DNS 탭 → **MagicDNS 켜기**
+
+MagicDNS를 켜면 IP 대신 호스트명으로 접속할 수 있습니다.
+
+**4. 앱 실행 후 스마트폰에서 접속**
+
+```bash
+./run.sh start
+```
+
+스마트폰 브라우저에서:
+
+```
+http://your-magic-dns:5173
+```
+
+### 확인 방법
+
+```bash
+# 맥 미니에서 Tailscale 연결 상태 확인
+tailscale status
+
+# Tailscale IP 확인
+tailscale ip -4
+```
+
+### 주의사항
+
+- 스마트폰에서 Tailscale 앱이 **활성화(VPN 켜짐)** 상태여야 합니다
+- 맥 미니에서 `./run.sh status`로 앱이 실행 중인지 확인하세요
+- `http://` (HTTPS 아님) 로 접속해야 합니다
 
 ---
 

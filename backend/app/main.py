@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
 from app.services.backup_service import start_scheduler, stop_scheduler
+from app.config import CORS_ORIGINS
 from app.routes import (
     chat,
     lessons,
@@ -35,7 +36,7 @@ app = FastAPI(title="Phone English Agent v2", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

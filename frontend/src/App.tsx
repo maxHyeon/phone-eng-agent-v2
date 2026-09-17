@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { Mode, ErrorStats, Lesson, ChatMessage } from "./types";
 import { useChat, _loadStore, _getStoreMessages, _resetAllStores } from "./hooks/useChat";
 import { useLesson } from "./hooks/useLesson";
+import { useIsMobile } from "./hooks/useIsMobile";
 import { getErrorStats, saveConversations, getConversations } from "./api/client";
 import TabNav from "./components/layout/TabNav";
 import ChatPanel from "./components/chat/ChatPanel";
@@ -37,6 +38,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [analyticsSubTab, setAnalyticsSubTab] = useState<"errors" | "vocab" | "diary">("errors");
+  const [analyticsErrorTab, setAnalyticsErrorTab] = useState<"sidebar" | "chat">("sidebar");
+  const isMobile = useIsMobile();
   const [pendingLesson, setPendingLesson] = useState<Lesson | null>(null);
   const [switching, setSwitching] = useState(false);
 
@@ -294,21 +297,74 @@ export default function App() {
               일기장
             </button>
           </div>
-          {/* Error analysis (existing) */}
-          <div className="flex flex-1 overflow-hidden" style={{ display: analyticsSubTab === "errors" ? "flex" : "none" }}>
-            <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3 space-y-3 scrollbar-thin">
-              <ErrorTypeChart stats={stats} />
-              <ErrorTrendChart stats={stats} />
-              <LessonHistory currentLessonId={lesson?.id} onSelect={handleLessonSelect} onDeleted={handleLessonDeleted} />
-              <ExpressionList />
-            </aside>
-            <ChatPanel
-              messages={analyticsChat.messages}
-              isStreaming={analyticsChat.isStreaming}
-              mode="analytics"
-              onSend={handleAnalyticsSend}
-              onStop={analyticsChat.stop}
-            />
+          {/* Error analysis */}
+          <div className="flex flex-1 flex-col overflow-hidden" style={{ display: analyticsSubTab === "errors" ? "flex" : "none" }}>
+            {isMobile ? (
+              /* ── 모바일: 통계/이력 | AI 분석 탭 전환 ── */
+              <>
+                <div className="shrink-0 flex border-b border-gray-100 bg-white">
+                  <button
+                    onClick={() => setAnalyticsErrorTab("sidebar")}
+                    className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
+                      analyticsErrorTab === "sidebar"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-gray-400"
+                    }`}
+                  >
+                    📊 통계 / 이력
+                  </button>
+                  <button
+                    onClick={() => setAnalyticsErrorTab("chat")}
+                    className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
+                      analyticsErrorTab === "chat"
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-gray-400"
+                    }`}
+                  >
+                    🤖 AI 분석
+                    {analyticsChat.messages.length > 0 && (
+                      <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white text-xs">
+                        {analyticsChat.messages.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+                <div className="flex flex-1 min-h-0 overflow-hidden" style={{ display: analyticsErrorTab === "sidebar" ? "flex" : "none" }}>
+                  <div className="flex-1 overflow-y-auto bg-gray-50 p-3 space-y-3">
+                    <ErrorTypeChart stats={stats} />
+                    <ErrorTrendChart stats={stats} />
+                    <LessonHistory currentLessonId={lesson?.id} onSelect={handleLessonSelect} onDeleted={handleLessonDeleted} />
+                    <ExpressionList />
+                  </div>
+                </div>
+                <div className="flex flex-1 min-h-0 flex-col overflow-hidden" style={{ display: analyticsErrorTab === "chat" ? "flex" : "none" }}>
+                  <ChatPanel
+                    messages={analyticsChat.messages}
+                    isStreaming={analyticsChat.isStreaming}
+                    mode="analytics"
+                    onSend={handleAnalyticsSend}
+                    onStop={analyticsChat.stop}
+                  />
+                </div>
+              </>
+            ) : (
+              /* ── 데스크톱: 기존 좌우 레이아웃 ── */
+              <>
+                <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3 space-y-3 scrollbar-thin">
+                  <ErrorTypeChart stats={stats} />
+                  <ErrorTrendChart stats={stats} />
+                  <LessonHistory currentLessonId={lesson?.id} onSelect={handleLessonSelect} onDeleted={handleLessonDeleted} />
+                  <ExpressionList />
+                </aside>
+                <ChatPanel
+                  messages={analyticsChat.messages}
+                  isStreaming={analyticsChat.isStreaming}
+                  mode="analytics"
+                  onSend={handleAnalyticsSend}
+                  onStop={analyticsChat.stop}
+                />
+              </>
+            )}
           </div>
           {/* Vocab note */}
           <div className="flex flex-1 overflow-hidden" style={{ display: analyticsSubTab === "vocab" ? "flex" : "none" }}>

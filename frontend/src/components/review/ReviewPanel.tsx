@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Lesson, Recording, Correction, Drill, ReviewStep } from "../../types";
 import type { UseChatReturn } from "../../hooks/useChat";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import {
   generateReport,
   downloadReport,
@@ -41,15 +42,15 @@ interface Props {
 
 export default function ReviewPanel({ lesson, chats }: Props) {
   const [step, setStep] = useState<ReviewStep>("input");
+  const [mobileInputTab, setMobileInputTab] = useState<"input" | "chat">("input");
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [drills, setDrills] = useState<Drill[]>([]);
   const [reportMarkdown, setReportMarkdown] = useState("");
   const [reportFilename, setReportFilename] = useState("");
+  const isMobile = useIsMobile();
 
-  // Track previous streaming state to detect streaming-end transitions
   const prevStreamingRef = useRef(false);
 
-  // Reload corrections/drills when moving to summary or drill step
   const loadData = useCallback(async () => {
     if (!lesson) return;
     const [c, d] = await Promise.all([
@@ -63,8 +64,9 @@ export default function ReviewPanel({ lesson, chats }: Props) {
   const handleInputSend = useCallback(
     (text: string) => {
       chats.input.sendMessage(text, "review:input" as any, lesson?.id ?? null);
+      if (isMobile) setMobileInputTab("chat");
     },
-    [chats.input.sendMessage, lesson],
+    [chats.input.sendMessage, lesson, isMobile],
   );
 
   const handleWritingSend = useCallback(
@@ -85,21 +87,18 @@ export default function ReviewPanel({ lesson, chats }: Props) {
     [handleInputSend],
   );
 
-  // Auto-navigate to summary when agent finishes and used analysis tools
+  // Auto-navigate to summary when agent finishes analysis tools
   useEffect(() => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = chats.input.isStreaming;
 
-    // Only act on streaming-end transition (true → false)
     if (!wasStreaming || chats.input.isStreaming) return;
     if (step !== "input" || !lesson) return;
 
-    // Check if the latest assistant message used analysis tools
     const lastMsg = chats.input.messages[chats.input.messages.length - 1];
     const hasAnalysis = lastMsg?.toolEvents?.some((e) => ANALYSIS_TOOLS.has(e.name));
     if (!hasAnalysis) return;
 
-    // Agent used analysis tools → generate report, load data, navigate
     generateReport(lesson.id)
       .then((result) => {
         setReportMarkdown(result.content);
@@ -114,33 +113,31 @@ export default function ReviewPanel({ lesson, chats }: Props) {
 
   const handleGoToSummary = useCallback(async () => {
     if (!lesson) return;
-    try {
-      await loadData();
-    } catch {
-      // corrections/drills not available yet
-    }
+    try { await loadData(); } catch { /* not available yet */ }
     try {
       const result = await generateReport(lesson.id);
       setReportMarkdown(result.content);
       setReportFilename(result.filename);
-    } catch {
-      // no report yet
-    }
+    } catch { /* no report yet */ }
     setStep("summary");
   }, [lesson, loadData]);
 
   const handleGoToDrill = useCallback(async () => {
-    try {
-      await loadData();
-    } catch {
-      // drills not available yet
-    }
+    try { await loadData(); } catch { /* not available yet */ }
     setStep("drill");
   }, [loadData]);
 
-  const handleGoToWriting = useCallback(() => {
-    setStep("writing");
-  }, []);
+  const handleGoToWriting = useCallback(() => setStep("writing"), []);
+
+  const handleStepChange = (s: ReviewStep) => {
+    if (s === "summary") handleGoToSummary();
+    else if (s === "drill") handleGoToDrill();
+    else if (s === "writing") handleGoToWriting();
+    else {
+      setStep(s);
+      setMobileInputTab("input");
+    }
+  };
 
   const handleToggleDrill = async (drill: Drill) => {
     const updated = await toggleDrill(drill.id, !drill.is_completed);
@@ -152,17 +149,12 @@ export default function ReviewPanel({ lesson, chats }: Props) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Step navigation */}
-      <div className="flex border-b border-gray-200 bg-white px-4">
+      <div className="shrink-0 flex border-b border-gray-200 bg-white px-4 overflow-x-auto">
         {STEPS.map((s) => (
           <button
             key={s.key}
-            onClick={() => {
-              if (s.key === "summary") handleGoToSummary();
-              else if (s.key === "drill") handleGoToDrill();
-              else if (s.key === "writing") handleGoToWriting();
-              else setStep(s.key);
-            }}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            onClick={() => handleStepChange(s.key)}
+            className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               step === s.key
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -173,37 +165,94 @@ export default function ReviewPanel({ lesson, chats }: Props) {
         ))}
       </div>
 
-      {/* Step content — all panels always mounted, hidden via inline style */}
+      {/* Step content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Input */}
-        <div className="flex flex-1" style={{ display: step === "input" ? "flex" : "none" }}>
-          <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3 space-y-3 scrollbar-thin">
-            <RecordingUpload
-              lesson={lesson}
-              onUploaded={handleRecordingUploaded}
-            />
-            <FeedbackInput lesson={lesson} onSend={handleInputSend} />
-            {chats.input.isStreaming && (
-              <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-700">
-                분석 중... 완료되면 자동으로 분석 결과로 이동합니다.
+
+        {/* ── 1. 입력 ── */}
+        <div className="flex flex-1 flex-col" style={{ display: step === "input" ? "flex" : "none" }}>
+          {isMobile ? (
+            <>
+              {/* 모바일 서브탭 */}
+              <div className="shrink-0 flex border-b border-gray-100 bg-white">
+                <button
+                  onClick={() => setMobileInputTab("input")}
+                  className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    mobileInputTab === "input"
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-400"
+                  }`}
+                >
+                  📁 녹음 / 피드백
+                </button>
+                <button
+                  onClick={() => setMobileInputTab("chat")}
+                  className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    mobileInputTab === "chat"
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-400"
+                  }`}
+                >
+                  🤖 AI 분석
+                  {chats.input.messages.length > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500 text-white text-xs">
+                      {chats.input.messages.length}
+                    </span>
+                  )}
+                </button>
               </div>
-            )}
-          </aside>
-          <ChatPanel
-            messages={chats.input.messages}
-            isStreaming={chats.input.isStreaming}
-            mode="review"
-            onSend={handleInputSend}
-            onStop={chats.input.stop}
-          />
+
+              {/* 입력 탭 */}
+              <div className="flex flex-1 min-h-0 overflow-hidden" style={{ display: mobileInputTab === "input" ? "flex" : "none" }}>
+                <div className="flex-1 overflow-y-auto bg-gray-50 p-3 space-y-3">
+                  <RecordingUpload lesson={lesson} onUploaded={handleRecordingUploaded} />
+                  <FeedbackInput lesson={lesson} onSend={handleInputSend} />
+                  {chats.input.isStreaming && (
+                    <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-700">
+                      분석 중... 완료되면 자동으로 분석 결과로 이동합니다.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* AI 분석 탭 */}
+              <div className="flex flex-1 min-h-0 flex-col overflow-hidden" style={{ display: mobileInputTab === "chat" ? "flex" : "none" }}>
+                <ChatPanel
+                  messages={chats.input.messages}
+                  isStreaming={chats.input.isStreaming}
+                  mode="review"
+                  onSend={handleInputSend}
+                  onStop={chats.input.stop}
+                />
+              </div>
+            </>
+          ) : (
+            /* 데스크톱: 기존 좌우 레이아웃 */
+            <>
+              <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3 space-y-3 scrollbar-thin">
+                <RecordingUpload lesson={lesson} onUploaded={handleRecordingUploaded} />
+                <FeedbackInput lesson={lesson} onSend={handleInputSend} />
+                {chats.input.isStreaming && (
+                  <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-700">
+                    분석 중... 완료되면 자동으로 분석 결과로 이동합니다.
+                  </div>
+                )}
+              </aside>
+              <ChatPanel
+                messages={chats.input.messages}
+                isStreaming={chats.input.isStreaming}
+                mode="review"
+                onSend={handleInputSend}
+                onStop={chats.input.stop}
+              />
+            </>
+          )}
         </div>
 
-        {/* Summary */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin" style={{ display: step === "summary" ? "block" : "none" }}>
-          <div className="mx-auto max-w-3xl">
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-800">분석 결과</h2>
+        {/* ── 2. 분석 결과 ── */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin" style={{ display: step === "summary" ? "block" : "none" }}>
+          <div className="mx-auto max-w-3xl p-4 md:p-6">
+            <div className="mb-4 md:mb-6 flex items-center justify-between">
+              <h2 className="text-lg md:text-xl font-bold text-gray-800">분석 결과</h2>
               {reportFilename && (
                 <a
                   href={downloadReport(reportFilename)}
@@ -215,9 +264,8 @@ export default function ReviewPanel({ lesson, chats }: Props) {
               )}
             </div>
 
-            {/* Error summary */}
             {corrections.length > 0 && (
-              <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+              <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
                 <h3 className="mb-3 text-sm font-semibold text-gray-700">
                   오류 유형 분포 ({corrections.length}건)
                 </h3>
@@ -242,9 +290,8 @@ export default function ReviewPanel({ lesson, chats }: Props) {
               </div>
             )}
 
-            {/* Corrections list */}
             {corrections.length > 0 && (
-              <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+              <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
                 <h3 className="mb-3 text-sm font-semibold text-gray-700">교정 목록</h3>
                 <div className="space-y-3">
                   {corrections.map((c, i) => (
@@ -252,9 +299,7 @@ export default function ReviewPanel({ lesson, chats }: Props) {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-bold text-gray-400">#{i + 1}</span>
                         {c.error_type && (
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${ERROR_TYPE_COLORS[c.error_type] || ERROR_TYPE_COLORS.other}`}
-                          >
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ERROR_TYPE_COLORS[c.error_type] || ERROR_TYPE_COLORS.other}`}>
                             {c.error_type}
                           </span>
                         )}
@@ -270,16 +315,13 @@ export default function ReviewPanel({ lesson, chats }: Props) {
               </div>
             )}
 
-            {/* Report markdown preview */}
             {reportMarkdown && (
-              <details className="mb-6 rounded-lg border border-gray-200 bg-white">
+              <details className="mb-4 rounded-lg border border-gray-200 bg-white">
                 <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                   전체 리포트 보기
                 </summary>
                 <div className="border-t border-gray-100 px-4 py-3 prose prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {reportMarkdown}
-                  </ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportMarkdown}</ReactMarkdown>
                 </div>
               </details>
             )}
@@ -291,7 +333,6 @@ export default function ReviewPanel({ lesson, chats }: Props) {
               </div>
             )}
 
-            {/* Next step */}
             {corrections.length > 0 && (
               <div className="flex justify-end">
                 <button
@@ -305,19 +346,17 @@ export default function ReviewPanel({ lesson, chats }: Props) {
           </div>
         </div>
 
-        {/* Drill */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin" style={{ display: step === "drill" ? "block" : "none" }}>
-          <div className="mx-auto max-w-3xl">
-            <div className="mb-6 flex items-center justify-between">
+        {/* ── 3. 드릴 연습 ── */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin" style={{ display: step === "drill" ? "block" : "none" }}>
+          <div className="mx-auto max-w-3xl p-4 md:p-6">
+            <div className="mb-4 md:mb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">드릴 연습</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {completedDrills}/{drills.length} 완료
-                </p>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">드릴 연습</h2>
+                <p className="text-sm text-gray-500 mt-1">{completedDrills}/{drills.length} 완료</p>
               </div>
               <button
                 onClick={handleGoToWriting}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 px-3 md:px-4 py-2 text-sm text-white hover:bg-blue-700"
               >
                 자유 작문으로 이동
               </button>
@@ -333,7 +372,7 @@ export default function ReviewPanel({ lesson, chats }: Props) {
                 {drills.map((drill, i) => (
                   <label
                     key={drill.id}
-                    className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                    className={`flex items-start gap-3 rounded-lg border p-3 md:p-4 cursor-pointer transition-colors ${
                       drill.is_completed
                         ? "border-green-200 bg-green-50"
                         : "border-gray-200 bg-white hover:bg-gray-50"
@@ -345,22 +384,18 @@ export default function ReviewPanel({ lesson, chats }: Props) {
                       onChange={() => handleToggleDrill(drill)}
                       className="mt-1 rounded"
                     />
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-bold text-gray-400">#{i + 1}</span>
                         <span className="text-xs font-medium text-gray-400 uppercase">
                           {drill.drill_type.replace("_", " ")}
                         </span>
                       </div>
-                      <p
-                        className={`text-sm ${drill.is_completed ? "text-gray-400 line-through" : "text-gray-700"}`}
-                      >
+                      <p className={`text-sm break-words ${drill.is_completed ? "text-gray-400 line-through" : "text-gray-700"}`}>
                         {drill.question}
                       </p>
                       {drill.correct_answer && drill.is_completed && (
-                        <p className="mt-1.5 text-sm text-green-600">
-                          A: {drill.correct_answer}
-                        </p>
+                        <p className="mt-1.5 text-sm text-green-600">A: {drill.correct_answer}</p>
                       )}
                     </div>
                   </label>
@@ -370,7 +405,7 @@ export default function ReviewPanel({ lesson, chats }: Props) {
           </div>
         </div>
 
-        {/* Writing */}
+        {/* ── 4. 자유 작문 ── */}
         <div className="flex flex-1" style={{ display: step === "writing" ? "flex" : "none" }}>
           <ChatPanel
             messages={chats.writing.messages}

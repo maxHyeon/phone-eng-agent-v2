@@ -53,7 +53,7 @@ _start_frontend() {
   local logfile="$LOG_DIR/frontend.log"
   log "Starting frontend → http://localhost:5173  (log: logs/frontend.log)"
   cd "$ROOT/frontend"
-  nohup npm run dev >> "$logfile" 2>&1 &
+  nohup npm run dev -- --host 0.0.0.0 >> "$logfile" 2>&1 &
   echo $! > "$FRONTEND_PID_FILE"
   cd "$ROOT"
 }

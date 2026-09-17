@@ -14,6 +14,15 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 SQLITE_DB_PATH = DATA_DIR / "phone_eng.db"
 WHISPER_MODEL = "base"
 
+# --- CORS 허용 Origins ---
+# 기본: localhost 개발 환경
+# TAILSCALE_ORIGINS: 쉼표로 구분된 추가 허용 origin 목록
+# 예) TAILSCALE_ORIGINS=http://your-talescale-ip:5173,http://your-talescale-dns:5173
+_extra_origins = [
+    o.strip() for o in os.getenv("TAILSCALE_ORIGINS", "").split(",") if o.strip()
+]
+CORS_ORIGINS = ["http://localhost:5173"] + _extra_origins
+
 # --- AI Provider Config ---
 # Supported: "anthropic", "bedrock"
 AI_PROVIDER = os.getenv("AI_PROVIDER", "anthropic")
