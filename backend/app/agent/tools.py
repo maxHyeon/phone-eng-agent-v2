@@ -2,6 +2,7 @@ import json
 
 from app.services import db_service
 from app.services.whisper_service import transcribe_file
+from app.services.profile_service import trigger_profile_update
 
 # ========== Tool Definitions ==========
 
@@ -394,6 +395,8 @@ def _handle_polish_english(input_data: dict) -> str:
         english_output=input_data["polished_english"],
         pronunciation_tips=json.dumps(input_data.get("key_expressions", []), ensure_ascii=False),
     )
+    # 일상 이야기 저장 완료 → 프로필 자동 갱신 (백그라운드, latency 없음)
+    trigger_profile_update()
     return json.dumps({
         "polished": input_data["polished_english"],
         "alternatives": input_data.get("alternative_phrasings", []),
@@ -462,6 +465,8 @@ def _handle_extract_corrections(input_data: dict) -> str:
             source=source,
         )
         saved.append(result)
+    # 교정 저장 완료 → 프로필 자동 갱신 (백그라운드, latency 없음)
+    trigger_profile_update()
     return json.dumps({"count": len(saved), "corrections": [{"id": s["id"], "original": s["original"], "corrected": s["corrected"]} for s in saved]}, ensure_ascii=False)
 
 
