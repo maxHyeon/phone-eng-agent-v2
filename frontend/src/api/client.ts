@@ -253,6 +253,27 @@ export const updateVocabMastery = (id: number, mastery: number) =>
 export const getVocabFlashcards = (category?: string) =>
   fetchJSON<VocabEntry[]>(`/vocab/flashcard${category ? `?category=${category}` : ""}`);
 
+// ===== Learner Profile =====
+export interface LearnerProfile {
+  id: number;
+  profile_type: string;
+  top_errors: { type: string; count: number; pct: number }[];
+  weak_areas: string[];
+  strong_areas: string[];
+  recent_topics: string[];
+  vocab_stats: { total: number; mastered: number; learning: number };
+  lesson_streak: number;
+  summary: string;
+  coaching_notes: string;
+  created_at: string;
+}
+
+export const getProfile = () =>
+  fetchJSON<{ profile: LearnerProfile | null }>("/profile");
+
+export const updateProfile = () =>
+  fetchJSON<{ status: string }>("/profile/update", { method: "POST" });
+
 // ===== Diary =====
 export const getDiaryDates = (year: number, month: number) =>
   fetchJSON<string[]>(`/diary/dates?year=${year}&month=${month}`);

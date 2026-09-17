@@ -2,6 +2,7 @@
 
 Uses Python's sqlite3.Connection.backup() for safe online backups.
 - Background scheduler: checks every hour, backs up once per day
+- Also triggers learner profile update once per day if there was a lesson today
 - Keeps the most recent N backups (default: 7)
 - Manual backup via API
 """
@@ -81,7 +82,31 @@ async def _scheduler_loop():
             _backup_if_needed()
         except Exception as e:
             logger.error(f"Auto-backup failed: {e}")
+
+        # Daily profile update: 오늘 수업이 있었으면 프로필 갱신
+        try:
+            _profile_update_if_needed()
+        except Exception as e:
+            logger.error(f"Auto-profile-update failed: {e}")
+
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+
+
+def _profile_update_if_needed():
+    """오늘 수업이 있었고, 마지막 프로필 이후 변경 사항이 있으면 프로필 갱신."""
+    from app.database import get_db as _get_db
+    with _get_db() as db:
+        today = datetime.now().strftime("%Y-%m-%d")
+        has_lesson_today = db.execute(
+            "SELECT COUNT(*) as n FROM lessons WHERE date = ?", (today,)
+        ).fetchone()["n"]
+
+    if not has_lesson_today:
+        return
+
+    from app.services.profile_service import trigger_profile_update
+    trigger_profile_update()
+    logger.info("Daily profile update triggered")
 
 
 def start_scheduler():
