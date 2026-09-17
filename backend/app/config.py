@@ -12,7 +12,7 @@ DATA_DIR.mkdir(exist_ok=True)
 UPLOADS_DIR.mkdir(exist_ok=True)
 
 SQLITE_DB_PATH = DATA_DIR / "phone_eng.db"
-WHISPER_MODEL = "base"
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")  # base → small: 반복 hallucination 감소
 
 # --- CORS 허용 Origins ---
 # 기본: localhost 개발 환경

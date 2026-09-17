@@ -20,10 +20,24 @@ def _format_timestamp(seconds: float) -> str:
 
 
 def transcribe_file(file_path: str) -> str:
-    """Transcribe an audio file with timestamped segments for speaker identification."""
+    """Transcribe an audio file with timestamped segments for speaker identification.
+
+    Anti-hallucination settings applied:
+    - condition_on_previous_text=False : 이전 텍스트를 컨텍스트로 주지 않아 반복 루프 차단
+    - compression_ratio_threshold=2.4  : 반복 텍스트 압축비 초과 시 해당 세그먼트 재시도
+    - no_speech_threshold=0.6          : 무음 구간을 텍스트로 채우지 않도록 필터링
+    - temperature=0.0                  : greedy decoding으로 안정적인 출력
+    """
     import mlx_whisper
 
-    result = mlx_whisper.transcribe(file_path, path_or_hf_repo=_get_model_path())
+    result = mlx_whisper.transcribe(
+        file_path,
+        path_or_hf_repo=_get_model_path(),
+        condition_on_previous_text=False,  # 반복 루프 핵심 원인 차단
+        compression_ratio_threshold=2.4,   # 반복 텍스트 감지 후 재시도
+        no_speech_threshold=0.6,           # 무음/저음 구간 스킵
+        temperature=0.0,                   # greedy decoding
+    )
 
     segments = result.get("segments", [])
     if not segments:
@@ -31,11 +45,15 @@ def transcribe_file(file_path: str) -> str:
 
     lines = []
     for seg in segments:
+        text = seg["text"].strip()
+        if not text:
+            continue
+        # no_speech_prob이 높은 세그먼트(무음 판정) 추가 필터링
+        if seg.get("no_speech_prob", 0) > 0.8:
+            continue
         start = _format_timestamp(seg["start"])
         end = _format_timestamp(seg["end"])
-        text = seg["text"].strip()
-        if text:
-            lines.append(f"[{start}-{end}] {text}")
+        lines.append(f"[{start}-{end}] {text}")
 
     return "\n".join(lines)
 
