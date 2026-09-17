@@ -111,7 +111,7 @@ Anthropic API 직접 연결 또는 AWS Bedrock 중 선택 가능. AWS는 IAM Rol
 3. **프리토킹** — 토론 질문 기반 자유 대화 연습
 
 ### 수업 후 복습 (4단계 플로우)
-1. **입력** — 녹음 업로드 (mlx-whisper 전사) + 강사 피드백 입력 (텍스트/스크린샷)
+1. **입력** — 녹음 업로드 (mlx-whisper `small` 모델 전사) + 강사 피드백 입력 (텍스트/스크린샷)
 2. **분석 결과** — 오류 유형 분포 + 교정 목록 + 마크다운 리포트 다운로드
 3. **드릴 연습** — 오류 기반 문장 구조 드릴 (체크박스 완료 추적)
 4. **자유 작문** — 배운 표현 활용 작문 + AI 교정
@@ -120,6 +120,36 @@ Anthropic API 직접 연결 또는 AWS Bedrock 중 선택 가능. AWS는 IAM Rol
 - 오류 유형별 빈도 차트, 시간별 추이 그래프
 - AI 텍스트 리포트 (주간/월간 분석)
 - 수업 이력 및 표현 사전
+
+### 학습자 프로필 (자동 갱신)
+
+일기 작성과 강의 피드백이 쌓일수록 AI가 학습자를 더 잘 파악하여 개인화된 코칭을 제공한다.
+
+**학습 현황 (SQL 집계 기반, 자동 갱신)**
+- 오류 유형 분포 바 차트 (tense, preposition, grammar 등)
+- 약점 / 강점 영역 뱃지
+- 단어장 숙달 통계 (전체 / 숙달 / 학습 중)
+- 연속 수업 일수 (streak)
+- 코칭 힌트 — 다음 수업 AI에게 전달
+
+**개인 컨텍스트 (LLM 추출 기반, 자동 갱신)**
+
+일기 및 일상 이야기에서 아래 6개 카테고리를 자동 추출하여 스몰톡 소재로 활용:
+
+| 카테고리 | 예시 |
+|---------|------|
+| 직업 / 분야 | 클라우드 회사 Delivery Consultant, 아키텍처 설계 담당 |
+| 가족 | 18개월 아기, 육아휴직 복직 준비 중 |
+| 관심사 | 요가, 독서 |
+| 고민 | 복직 후 육아 루틴 조정 |
+| 건강 | 허리 통증, 요가로 관리 중 |
+| 생활패턴 | 아침 어린이집 루틴, 저녁 요가 |
+
+**자동 갱신 트리거 3가지:**
+- 일상 이야기 `polish_english` 완료 시 — 즉시 백그라운드 갱신
+- 강의 피드백 `extract_corrections` 완료 시 — 즉시 백그라운드 갱신
+- 매시간 체크 cron — 오늘 수업이 있으면 1회 갱신
+- 학습 기록 탭 → **↻ 프로필 갱신** 버튼 — 수동 즉시 갱신
 
 ---
 
@@ -130,7 +160,7 @@ Anthropic API 직접 연결 또는 AWS Bedrock 중 선택 가능. AWS는 IAM Rol
 | Backend | Python + FastAPI + Anthropic SDK |
 | Frontend | React 19 + TypeScript + Vite + Tailwind CSS 4 |
 | AI | Claude API (대화, 분석, 도구 호출) |
-| 음성 전사 | mlx-whisper (Apple Silicon 네이티브) |
+| 음성 전사 | mlx-whisper `small` 모델 (Apple Silicon 네이티브) |
 | 이미지 텍스트 추출 | Claude Vision API |
 | 차트 | Recharts |
 | DB | SQLite |
@@ -152,6 +182,30 @@ Anthropic API 직접 연결 또는 AWS Bedrock 중 선택 가능. AWS는 IAM Rol
 | AWS EC2 / Fargate | ❌ mlx-whisper 불가 → 대안 1·3·4 사용 |
 
 > 음성 전사 외 모든 기능(스몰톡 연습, 기사 분석, 오류 교정, 드릴, 학습 기록 등)은 플랫폼 무관하게 동작한다.
+
+### 현재 모델 설정 및 품질 개선 이력
+
+기본 모델은 `small`이며, 환경변수로 변경할 수 있다:
+
+```bash
+# backend/.env
+WHISPER_MODEL=small   # 기본값 (권장)
+# WHISPER_MODEL=base  # 더 빠르지만 반복 hallucination 발생 가능
+# WHISPER_MODEL=large # 최고 품질, 속도 느림
+```
+
+**반복 hallucination 방지를 위해 적용된 파라미터:**
+
+전화 통화 녹음 특성상 (저음질, 26kbps, 두 화자 혼재) `base` 모델에서 반복 현상이 발생했다. 아래 설정으로 해결:
+
+| 파라미터 | 값 | 효과 |
+|---------|---|------|
+| `condition_on_previous_text` | `False` | 이전 텍스트 컨텍스트 차단 → 반복 루프 핵심 원인 제거 |
+| `compression_ratio_threshold` | `2.4` | 반복 텍스트 압축비 초과 시 해당 세그먼트 재시도 |
+| `no_speech_threshold` | `0.6` | 무음/저음 구간을 텍스트로 채우지 않도록 필터링 |
+| `temperature` | `0.0` | Greedy decoding으로 안정적인 출력 |
+
+`small` 모델(244MB) 기준 Apple Silicon M1에서 25분 파일을 약 3~4분에 처리한다.
 
 ### 다른 환경에서 실행하려면 — 대안
 
