@@ -602,3 +602,123 @@ def delete_diary_entry(diary_id: int) -> bool:
     with get_db() as db:
         cur = db.execute("DELETE FROM diary_entries WHERE id = ? AND source = 'manual'", (diary_id,))
         return cur.rowcount > 0
+
+
+# ========== Learner Profile ==========
+
+def save_learner_profile(data: dict) -> dict:
+    with get_db() as db:
+        cur = db.execute(
+            """INSERT INTO learner_profiles
+               (profile_type, top_errors, weak_areas, strong_areas, recent_topics,
+                vocab_stats, lesson_streak, summary, coaching_notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                data.get("profile_type", "snapshot"),
+                json.dumps(data.get("top_errors", []), ensure_ascii=False),
+                json.dumps(data.get("weak_areas", []), ensure_ascii=False),
+                json.dumps(data.get("strong_areas", []), ensure_ascii=False),
+                json.dumps(data.get("recent_topics", []), ensure_ascii=False),
+                json.dumps(data.get("vocab_stats", {}), ensure_ascii=False),
+                data.get("lesson_streak", 0),
+                data.get("summary", ""),
+                data.get("coaching_notes", ""),
+            ),
+        )
+        row = db.execute("SELECT * FROM learner_profiles WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+
+
+def get_latest_learner_profile() -> dict | None:
+    with get_db() as db:
+        row = db.execute(
+            "SELECT * FROM learner_profiles ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return dict(row) if row else None
+
+
+# ========== Context Query Tools ==========
+
+def get_recurring_errors(error_type: str | None = None, limit: int = 5) -> list[dict]:
+    """특정 오류 유형의 반복 패턴 조회 (최근 수업 기준)"""
+    with get_db() as db:
+        if error_type:
+            rows = db.execute(
+                """SELECT c.original, c.corrected, c.explanation, c.error_type, l.date, l.topic
+                   FROM corrections c
+                   JOIN lessons l ON c.lesson_id = l.id
+                   WHERE c.error_type = ?
+                   ORDER BY l.date DESC LIMIT ?""",
+                (error_type, limit),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """SELECT c.original, c.corrected, c.explanation, c.error_type, l.date, l.topic
+                   FROM corrections c
+                   JOIN lessons l ON c.lesson_id = l.id
+                   ORDER BY l.date DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_related_expressions(topic: str, limit: int = 8) -> list[dict]:
+    """오늘 토픽과 관련된 기존 학습 표현 조회"""
+    keyword = f"%{topic}%"
+    with get_db() as db:
+        # 1) 이전 수업 토픽이 관련된 표현
+        rows = db.execute(
+            """SELECT DISTINCT e.expression, e.meaning, e.example, l.date, l.topic
+               FROM expressions e
+               JOIN lessons l ON e.lesson_id = l.id
+               WHERE l.topic LIKE ? OR e.expression LIKE ? OR e.meaning LIKE ?
+               ORDER BY l.date DESC LIMIT ?""",
+            (keyword, keyword, keyword, limit),
+        ).fetchall()
+        lesson_expr = [dict(r) for r in rows]
+
+        # 2) 표현 노트(vocab_entries)에서도 조회
+        vocab_rows = db.execute(
+            """SELECT expression, meaning, example, mastery
+               FROM vocab_entries
+               WHERE expression LIKE ? OR meaning LIKE ? OR source_context LIKE ?
+               ORDER BY mastery DESC, created_at DESC LIMIT ?""",
+            (keyword, keyword, keyword, limit),
+        ).fetchall()
+        vocab_expr = [dict(r) for r in vocab_rows]
+
+    # 합쳐서 중복 제거
+    seen = set()
+    result = []
+    for item in lesson_expr + vocab_expr:
+        key = item["expression"]
+        if key not in seen:
+            seen.add(key)
+            result.append(item)
+    return result[:limit]
+
+
+def get_unmastered_vocab(limit: int = 10) -> list[dict]:
+    """미숙달 단어 조회 (mastery < 3, 낮은 mastery 우선)"""
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT expression, meaning, example, mastery, category
+               FROM vocab_entries
+               WHERE mastery < 3
+               ORDER BY mastery ASC, updated_at ASC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_recent_diary(days: int = 7, limit: int = 5) -> list[dict]:
+    """최근 일기 조회 (스몰톡 소재용)"""
+    with get_db() as db:
+        rows = db.execute(
+            """SELECT date, user_input, ai_output, memo, source
+               FROM diary_entries
+               WHERE date >= date('now', ? || ' days')
+               ORDER BY date DESC LIMIT ?""",
+            (f"-{days}", limit),
+        ).fetchall()
+        return [dict(r) for r in rows]

@@ -138,6 +138,20 @@ CREATE TABLE IF NOT EXISTS diary_entries (
     updated_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS learner_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_type TEXT NOT NULL DEFAULT 'snapshot',
+    top_errors TEXT,
+    weak_areas TEXT,
+    strong_areas TEXT,
+    recent_topics TEXT,
+    vocab_stats TEXT,
+    lesson_streak INTEGER DEFAULT 0,
+    summary TEXT,
+    coaching_notes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 

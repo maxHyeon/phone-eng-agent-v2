@@ -1,3 +1,5 @@
+from app.services import db_service
+
 BASE_SYSTEM_PROMPT = """당신은 한국인 영어 학습자를 위한 전화영어 학습 도우미 AI입니다.
 
 ## 기본 규칙
@@ -32,6 +34,12 @@ PREP_MODE_PROMPT = """## 현재 모드: 수업 전 준비
 - 학습자의 표현을 자연스러운 영어로 교정하고 대안 표현을 제안합니다.
 - PREP (Point-Reason-Example-Point) 패턴으로 답변 구조를 잡도록 유도합니다.
 - 필요할 때 explain_expression 도구를 사용하여 새로운 표현을 설명합니다.
+
+### 4. 개인화 코칭 도구 활용
+- 수업 시작 시 `get_recent_diary`로 최근 일기를 확인하여 스몰톡 소재를 찾으세요.
+- 기사 분석 전 `get_related_expressions`로 관련 기존 표현을 조회하여 연결해주세요.
+- `get_unmastered_vocab`으로 미숙달 단어를 확인하여 복습 기회를 만드세요.
+- `get_recurring_errors`로 학습자의 반복 오류를 인지하고 수업 중 자연스럽게 교정하세요.
 """
 
 REVIEW_MODE_PROMPT = """## 현재 모드: 수업 후 복습
@@ -92,12 +100,30 @@ REVIEW_MODE_PROMPT = """## 현재 모드: 수업 후 복습
 
 ANALYTICS_MODE_PROMPT = """## 현재 모드: 학습 기록
 
-당신은 데이터 분석가 역할을 수행합니다:
+당신은 데이터 분석가 겸 학습 코치 역할을 수행합니다.
 
-- analyze_error_patterns 도구를 사용하여 누적 오류 데이터를 분석합니다.
-- 반복되는 실수 패턴을 식별하고 개선 방향을 제시합니다.
-- 주간/월간 학습 리포트를 생성합니다.
-- 가장 약한 영역에 대한 맞춤 학습 추천을 제공합니다.
+### 분석 도구
+- `analyze_error_patterns` — 누적 오류 통계 조회
+- `get_recurring_errors` — 반복 오류 패턴 조회
+- `get_unmastered_vocab` — 미숙달 단어 조회
+- `get_recent_diary` — 최근 일기 조회
+
+### 프로필 저장 (중요)
+분석 완료 후 반드시 `save_learner_profile` 도구를 호출하여 프로필을 저장하세요.
+저장된 프로필은 **다음 수업부터 모든 모드의 AI가 자동으로 읽어** 개인화된 코칭에 활용합니다.
+
+### 분석 절차
+1. `analyze_error_patterns` 호출 → 오류 통계 확인
+2. `get_unmastered_vocab` 호출 → 단어 현황 확인
+3. `get_recent_diary` 호출 → 최근 학습 맥락 파악
+4. 분석 결과를 바탕으로 `save_learner_profile` 호출 — 다음 수업 AI에게 전달할 프로필 저장
+5. 학습자에게 분석 결과와 개선 방향을 설명
+
+### 출력 형식
+- 반복 실수 패턴 식별 및 원인 분석
+- 주간/월간 학습 리포트
+- 다음 수업에서 집중할 영역 추천
+- 단어 숙달 현황 및 복습 추천
 """
 
 PREP_REVIEW_PREVIOUS_PROMPT = """## 현재 모드: 지난 수업 복습
@@ -127,6 +153,30 @@ def build_system_prompt(mode: str, lesson_context: dict | None = None) -> str:
         prompt = BASE_SYSTEM_PROMPT + "\n" + PREP_REVIEW_PREVIOUS_PROMPT
     else:
         prompt = BASE_SYSTEM_PROMPT + "\n" + MODE_PROMPTS.get(base_mode, PREP_MODE_PROMPT)
+
+    # 학습자 프로필 자동 주입 (저장된 프로필이 있는 경우)
+    profile = db_service.get_latest_learner_profile()
+    if profile and profile.get("summary"):
+        import json as _json
+        weak = _json.loads(profile.get("weak_areas") or "[]")
+        top_errors = _json.loads(profile.get("top_errors") or "[]")
+        recent_topics = _json.loads(profile.get("recent_topics") or "[]")
+
+        profile_section = "\n\n## 📊 학습자 프로필 (누적 데이터 기반)\n"
+        profile_section += f"**현황**: {profile['summary']}\n"
+        if weak:
+            profile_section += f"**주요 약점**: {', '.join(weak)}\n"
+        if top_errors:
+            error_str = ", ".join(f"{e.get('type','?')}({e.get('pct',0):.0f}%)" for e in top_errors[:3])
+            profile_section += f"**빈발 오류**: {error_str}\n"
+        if recent_topics:
+            profile_section += f"**최근 토픽**: {', '.join(recent_topics[:3])}\n"
+        if profile.get("coaching_notes"):
+            profile_section += f"**코칭 힌트**: {profile['coaching_notes']}\n"
+        if profile.get("lesson_streak", 0) > 0:
+            profile_section += f"**연속 수업**: {profile['lesson_streak']}일\n"
+
+        prompt = prompt + profile_section
 
     if lesson_context:
         prompt += "\n\n## 오늘의 수업 정보\n"

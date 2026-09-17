@@ -228,13 +228,143 @@ TOOL_DEFINITIONS = [
             "required": ["analysis_type"],
         },
     },
+    {
+        "name": "save_learner_profile",
+        "description": "학습자의 누적 데이터를 분석하여 학습 프로필을 생성하고 저장합니다. analytics 모드에서 분석 완료 후 호출하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "top_errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {"type": "string"},
+                            "count": {"type": "integer"},
+                            "pct": {"type": "number"},
+                        },
+                    },
+                    "description": "오류 유형별 빈도 (상위 5개)",
+                },
+                "weak_areas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "약점 영역 목록 (예: ['tense', 'preposition'])",
+                },
+                "strong_areas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "강점 영역 목록",
+                },
+                "recent_topics": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "최근 수업 토픽 목록",
+                },
+                "vocab_stats": {
+                    "type": "object",
+                    "properties": {
+                        "total": {"type": "integer"},
+                        "mastered": {"type": "integer"},
+                        "learning": {"type": "integer"},
+                    },
+                    "description": "단어장 통계",
+                },
+                "lesson_streak": {
+                    "type": "integer",
+                    "description": "연속 수업 일수",
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "학습자 현황 요약 (한국어 2~3문장, 다음 수업 AI가 읽을 내용)",
+                },
+                "coaching_notes": {
+                    "type": "string",
+                    "description": "코칭 힌트 (예: '시제 오류가 잦으므로 수업 중 시제 교정에 집중할 것')",
+                },
+            },
+            "required": ["top_errors", "weak_areas", "summary", "coaching_notes"],
+        },
+    },
+    {
+        "name": "get_recurring_errors",
+        "description": "과거 수업에서 반복된 오류 패턴을 조회합니다. 학습자가 자주 틀리는 표현을 수업 전/후에 참고하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "error_type": {
+                    "type": "string",
+                    "enum": ["tense", "preposition", "article", "word_order", "word_choice", "pronunciation", "grammar", "other"],
+                    "description": "조회할 오류 유형 (없으면 전체 조회)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "조회 건수 (기본 5)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_related_expressions",
+        "description": "오늘 수업 토픽과 관련하여 과거에 학습한 표현을 조회합니다. 기사 분석이나 프리토킹 전에 활용하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "검색 키워드 (오늘 수업 토픽 또는 기사 주제)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "조회 건수 (기본 8)",
+                },
+            },
+            "required": ["topic"],
+        },
+    },
+    {
+        "name": "get_unmastered_vocab",
+        "description": "아직 숙달되지 않은 단어장 항목을 조회합니다. 수업 전 복습 또는 드릴 생성에 활용하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "조회 건수 (기본 10)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_recent_diary",
+        "description": "최근 일기를 조회합니다. 스몰톡 소재 발굴이나 학습자 근황 파악에 활용하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "최근 며칠치 조회 (기본 7)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "조회 건수 (기본 5)",
+                },
+            },
+            "required": [],
+        },
+    },
 ]
 
 # Mode → available tools
 MODE_TOOLS = {
-    "prep": {"generate_smalltalk_scenario", "polish_english", "analyze_script", "explain_expression"},
-    "review": {"transcribe_audio", "extract_corrections", "generate_drill", "evaluate_drill_answer", "generate_quiz"},
-    "analytics": {"analyze_error_patterns"},
+    "prep": {"generate_smalltalk_scenario", "polish_english", "analyze_script", "explain_expression",
+             "get_recurring_errors", "get_related_expressions", "get_unmastered_vocab", "get_recent_diary"},
+    "review": {"transcribe_audio", "extract_corrections", "generate_drill", "evaluate_drill_answer", "generate_quiz",
+               "get_recurring_errors"},
+    "analytics": {"analyze_error_patterns", "save_learner_profile",
+                  "get_recurring_errors", "get_unmastered_vocab", "get_recent_diary"},
 }
 
 
@@ -386,6 +516,40 @@ def _handle_analyze_error_patterns(input_data: dict) -> str:
     }, ensure_ascii=False)
 
 
+def _handle_save_learner_profile(input_data: dict) -> str:
+    result = db_service.save_learner_profile(input_data)
+    return json.dumps({"saved": True, "id": result["id"], "summary": result["summary"]}, ensure_ascii=False)
+
+
+def _handle_get_recurring_errors(input_data: dict) -> str:
+    errors = db_service.get_recurring_errors(
+        error_type=input_data.get("error_type"),
+        limit=input_data.get("limit", 5),
+    )
+    return json.dumps({"count": len(errors), "errors": errors}, ensure_ascii=False)
+
+
+def _handle_get_related_expressions(input_data: dict) -> str:
+    exprs = db_service.get_related_expressions(
+        topic=input_data["topic"],
+        limit=input_data.get("limit", 8),
+    )
+    return json.dumps({"count": len(exprs), "expressions": exprs}, ensure_ascii=False)
+
+
+def _handle_get_unmastered_vocab(input_data: dict) -> str:
+    vocab = db_service.get_unmastered_vocab(limit=input_data.get("limit", 10))
+    return json.dumps({"count": len(vocab), "vocab": vocab}, ensure_ascii=False)
+
+
+def _handle_get_recent_diary(input_data: dict) -> str:
+    entries = db_service.get_recent_diary(
+        days=input_data.get("days", 7),
+        limit=input_data.get("limit", 5),
+    )
+    return json.dumps({"count": len(entries), "entries": entries}, ensure_ascii=False)
+
+
 TOOL_HANDLERS = {
     "generate_smalltalk_scenario": _handle_generate_smalltalk_scenario,
     "polish_english": _handle_polish_english,
@@ -397,6 +561,11 @@ TOOL_HANDLERS = {
     "evaluate_drill_answer": _handle_evaluate_drill_answer,
     "generate_quiz": _handle_generate_quiz,
     "analyze_error_patterns": _handle_analyze_error_patterns,
+    "save_learner_profile": _handle_save_learner_profile,
+    "get_recurring_errors": _handle_get_recurring_errors,
+    "get_related_expressions": _handle_get_related_expressions,
+    "get_unmastered_vocab": _handle_get_unmastered_vocab,
+    "get_recent_diary": _handle_get_recent_diary,
 }
 
 
