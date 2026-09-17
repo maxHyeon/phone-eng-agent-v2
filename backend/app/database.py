@@ -152,6 +152,14 @@ CREATE TABLE IF NOT EXISTS learner_profiles (
     coaching_notes TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS personal_context (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL UNIQUE,
+    content TEXT NOT NULL,
+    source TEXT DEFAULT 'diary',
+    updated_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 

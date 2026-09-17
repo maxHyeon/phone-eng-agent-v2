@@ -3,6 +3,7 @@ import json
 from app.services import db_service
 from app.services.whisper_service import transcribe_file
 from app.services.profile_service import trigger_profile_update
+from app.services.context_extractor_service import trigger_context_extraction
 
 # ========== Tool Definitions ==========
 
@@ -397,6 +398,8 @@ def _handle_polish_english(input_data: dict) -> str:
     )
     # 일상 이야기 저장 완료 → 프로필 자동 갱신 (백그라운드, latency 없음)
     trigger_profile_update()
+    # 개인 컨텍스트 추출 (직업/가족/관심사 등) — 백그라운드
+    trigger_context_extraction(input_data["original_input"], source="daily_story")
     return json.dumps({
         "polished": input_data["polished_english"],
         "alternatives": input_data.get("alternative_phrasings", []),
