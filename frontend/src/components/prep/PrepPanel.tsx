@@ -29,7 +29,6 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
   const handleSmalltalkSend = useCallback(
     (text: string) => {
       chats.smalltalk.sendMessage(text, "prep:smalltalk" as any, lesson?.id ?? null);
-      // 모바일에서 연습 시작 시 자동으로 채팅 탭으로 전환
       if (isMobile) setMobileTab("chat");
     },
     [chats.smalltalk.sendMessage, lesson, isMobile],
@@ -50,7 +49,6 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
     [chats.freetalk.sendMessage, lesson],
   );
 
-  // step 변경 시 모바일 탭을 input으로 초기화
   const handleStepChange = (s: PrepStep) => {
     setStep(s);
     setMobileTab("input");
@@ -84,11 +82,10 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
         </div>
 
         {/* Smalltalk */}
-        <div className="flex flex-1 min-h-0 flex-col" style={{ display: step === "smalltalk" ? "flex" : "none" }}>
+        <div className="flex flex-1 min-h-0" style={{ display: step === "smalltalk" ? "flex" : "none" }}>
           {isMobile ? (
             /* ── 모바일: 입력 / 대화 탭 전환 ── */
-            <>
-              {/* 모바일 서브탭 */}
+            <div className="flex flex-1 flex-col min-h-0">
               <div className="shrink-0 flex border-b border-gray-100 bg-white">
                 <button
                   onClick={() => setMobileTab("input")}
@@ -116,15 +113,11 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
                   )}
                 </button>
               </div>
-
-              {/* 내용 입력 탭 */}
               <div className="flex flex-1 min-h-0 overflow-hidden" style={{ display: mobileTab === "input" ? "flex" : "none" }}>
                 <div className="flex-1 overflow-y-auto bg-gray-50">
                   <DailyStoryInput lesson={lesson} onSend={handleSmalltalkSend} />
                 </div>
               </div>
-
-              {/* 대화 탭 */}
               <div className="flex flex-1 min-h-0 flex-col overflow-hidden" style={{ display: mobileTab === "chat" ? "flex" : "none" }}>
                 <ChatPanel
                   messages={chats.smalltalk.messages}
@@ -134,7 +127,7 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
                   onStop={chats.smalltalk.stop}
                 />
               </div>
-            </>
+            </div>
           ) : (
             /* ── 데스크톱: 기존 좌우 레이아웃 ── */
             <>
@@ -155,10 +148,10 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
         </div>
 
         {/* Article */}
-        <div className="flex flex-1 flex-col" style={{ display: step === "article" ? "flex" : "none" }}>
+        <div className="flex flex-1" style={{ display: step === "article" ? "flex" : "none" }}>
           {isMobile ? (
             /* ── 모바일: 입력 / 대화 탭 전환 ── */
-            <>
+            <div className="flex flex-1 flex-col min-h-0">
               <div className="shrink-0 flex border-b border-gray-100 bg-white">
                 <button
                   onClick={() => setMobileTab("input")}
@@ -186,7 +179,6 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
                   )}
                 </button>
               </div>
-
               <div className="flex flex-1 min-h-0 overflow-hidden" style={{ display: mobileTab === "input" ? "flex" : "none" }}>
                 <div className="flex-1 overflow-y-auto bg-gray-50 p-3">
                   <TopicInput
@@ -196,7 +188,6 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
                   />
                 </div>
               </div>
-
               <div className="flex flex-1 min-h-0 flex-col overflow-hidden" style={{ display: mobileTab === "chat" ? "flex" : "none" }}>
                 <ChatPanel
                   messages={chats.article.messages}
@@ -206,7 +197,7 @@ export default function PrepPanel({ lesson, updateLesson, chats }: Props) {
                   onStop={chats.article.stop}
                 />
               </div>
-            </>
+            </div>
           ) : (
             /* ── 데스크톱: 기존 좌우 레이아웃 ── */
             <>
