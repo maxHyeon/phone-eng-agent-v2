@@ -169,9 +169,9 @@ export default function ReviewPanel({ lesson, chats }: Props) {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── 1. 입력 ── */}
-        <div className="flex flex-1 flex-col" style={{ display: step === "input" ? "flex" : "none" }}>
+        <div className="flex flex-1" style={{ display: step === "input" ? "flex" : "none" }}>
           {isMobile ? (
-            <>
+            <div className="flex flex-1 flex-col min-h-0">
               {/* 모바일 서브탭 */}
               <div className="shrink-0 flex border-b border-gray-100 bg-white">
                 <button
@@ -224,7 +224,7 @@ export default function ReviewPanel({ lesson, chats }: Props) {
                   onStop={chats.input.stop}
                 />
               </div>
-            </>
+            </div>
           ) : (
             /* 데스크톱: 기존 좌우 레이아웃 */
             <>

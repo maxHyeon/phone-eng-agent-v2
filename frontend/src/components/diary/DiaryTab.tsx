@@ -25,10 +25,10 @@ export default function DiaryTab() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full overflow-hidden">
       {isMobile ? (
         /* ── 모바일: 캘린더 | 일기 목록 탭 전환 ── */
-        <>
+        <div className="flex flex-1 flex-col min-h-0">
           <div className="shrink-0 flex border-b border-gray-100 bg-white">
             <button
               onClick={() => setMobileTab("calendar")}
@@ -79,7 +79,7 @@ export default function DiaryTab() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       ) : (
         /* ── 데스크톱: 기존 좌우 레이아웃 ── */
         <div className="flex h-full">

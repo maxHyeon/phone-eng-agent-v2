@@ -305,10 +305,10 @@ export default function App() {
             </button>
           </div>
           {/* Error analysis */}
-          <div className="flex flex-1 flex-col overflow-hidden" style={{ display: analyticsSubTab === "errors" ? "flex" : "none" }}>
+          <div className="flex flex-1 overflow-hidden" style={{ display: analyticsSubTab === "errors" ? "flex" : "none" }}>
             {isMobile ? (
               /* ── 모바일: 통계/이력 | AI 분석 탭 전환 ── */
-              <>
+              <div className="flex flex-1 flex-col min-h-0">
                 <div className="shrink-0 flex border-b border-gray-100 bg-white">
                   <button
                     onClick={() => setAnalyticsErrorTab("sidebar")}
@@ -353,7 +353,7 @@ export default function App() {
                     onStop={analyticsChat.stop}
                   />
                 </div>
-              </>
+              </div>
             ) : (
               /* ── 데스크톱: 기존 좌우 레이아웃 ── */
               <>
